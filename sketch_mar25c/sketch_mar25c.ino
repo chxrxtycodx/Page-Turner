@@ -1,7 +1,7 @@
 // Define motor control pins
 const int enablePin = 9;
-const int motorIn1 = 2;
-const int motorIn2 = 3;
+const int motorIn1 = 7;
+const int motorIn2 = 8;
 
 void setup() {
   pinMode(enablePin, OUTPUT);
@@ -12,8 +12,8 @@ void setup() {
   digitalWrite(motorIn1, HIGH);
   digitalWrite(motorIn2, LOW);
   analogWrite(enablePin, 210);  // Speed (0-255)
-  delay(1000)
-  analogWrite(enablePin, 0)
+  delay(1000);
+  analogWrite(enablePin, 0);
 }
 
 void loop() {
