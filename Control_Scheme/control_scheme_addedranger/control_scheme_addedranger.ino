@@ -6,21 +6,24 @@
 #define CLAMP_PIN2 5
 #define CLAMP_PIN3 6 
 
+//wheel vars
 const int wheelServoIn1 = 7;  // Wheel servo on pin 7
 const int wheelServoIn2 = 8;  // Wheel servo on pin 8
 const int enablePin = 4; //pwm pin
 
+//ranger vars
 const int trigPin = 14;
 const int echoPin = 15;
-
 float duration, distance;
+
+//clamp vars
 Servo clampServo1;
 Servo clampServo2;
 Servo flipServo;
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  
   pinMode(BUTTON_PIN, INPUT_PULLUP) ; // Internal pull-up resistor #input
 
   clampServo1.attach(CLAMP_PIN1);
@@ -36,14 +39,26 @@ void setup() {
 
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
+  Serial.begin(9600);
 }
 
 void loop() {
-  //----------------------
   // put your main code here, to run repeatedly:
-  
-  if (digitalRead(BUTTON_PIN) == HIGH) { // Button is pressed
-    Serial.print("Button pressed");
+
+  // ranger reading
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration*.0343)/2;
+
+  if (digitalRead(BUTTON_PIN) == HIGH || distance <= 40) { // Button is pressed
+    Serial.print("Sequence activated, ranger distance: ");
+    Serial.println(distance);
+    delay(500);
 
     //lift clamps
     clampServo1.write(90);  // Move servo to 90 degrees
@@ -61,7 +76,7 @@ void loop() {
     analogWrite(enablePin, 0); //turn motor off
 
     //Raise flipper 
-    flipServo.write(90);
+    flipServo.write(120);
     delay(2000);
     flipServo.write(0);
 
@@ -69,7 +84,6 @@ void loop() {
     clampServo1.write(0);   // Move servo to 0 degrees
     clampServo2.write(0);
     delay(1000);
-
   }
   
 }
