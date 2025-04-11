@@ -1,0 +1,128 @@
+#include <Servo.h>
+
+#define BUTTON_PIN 2 // Button connected to pin 2 {pins 2 reserved for inputs; eg 3 for voice recog.}
+
+#define CLAMP_PIN1 3 //right clamp servo
+#define CLAMP_PIN2 5 //left clamp servo
+#define CLAMP_PIN3 6 //page flipper
+
+const int wheelServoIn1 = 7;  // Wheel servo on pin 7
+const int wheelServoIn2 = 8;  // Wheel servo on pin 8
+const int enablePin = 4; //pwm pin
+
+const int trigPin = 14;
+const int echoPin = 15;
+
+float duration, distance;
+Servo clampServo1;
+Servo clampServo2;
+
+
+//
+Servo flipServo;
+bool servoActive = false;
+unsigned long servoStartTime = 0;
+const int clampHoldTime = 1500; // milliseconds
+
+//Less "angry" servo
+int16_t servoCurrent=0, servoDesired=0, servoDelta=7;
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  pinMode(BUTTON_PIN, INPUT_PULLUP) ; // Internal pull-up resistor #input
+
+  clampServo1.attach(CLAMP_PIN1);
+  clampServo1.write(100); //start at off position
+  clampServo2.attach(CLAMP_PIN2);
+  clampServo2.write(0);
+
+//
+  flipServo.attach(CLAMP_PIN3); // Attach servo to pin D9
+  flipServo.write(100);           // Set servo to initial position
+  servoCurrent=100;
+  servoDesired=100;
+  //ADDED THIS PART
+//  flipServo.attach(CLAMP_PIN3);
+//  flipServo.write(100);
+
+  pinMode(enablePin, OUTPUT);
+  pinMode(wheelServoIn1, OUTPUT);
+  pinMode(wheelServoIn2, OUTPUT);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+}
+
+void loop() {
+  //----------------------
+  // put your main code here, to run repeatedly:
+  
+  if (digitalRead(BUTTON_PIN) == HIGH) { // Button is pressed
+    Serial.print("Button pressed");
+
+    //lift clamps
+    clampServo1.write(0);  // Move servo to 90 degrees
+    clampServo2.write(100);
+    delay(350);
+    /* //do we have to drop servos down after lift?
+    clampServo1.write(0);  // Move servo back 0 degrees(off position)
+    clampServo2.write(0); */
+
+    // Spin the motor
+    digitalWrite(wheelServoIn1, HIGH); 
+    digitalWrite(wheelServoIn2, LOW);
+    analogWrite(enablePin, 210);  // Speed
+
+    delay(1500); // Let it spin
+
+    // STOP the motor - method 1 (BRAKE)
+    digitalWrite(wheelServoIn1, LOW);
+    digitalWrite(wheelServoIn2, LOW);
+    analogWrite(enablePin, 0); // Optional, but reinforces motor stop
+
+
+    //Raise flipper 
+    // flipServo.write(0);
+    // delay(750);
+    // flipServo.write(100);
+
+    // Activate clamp
+    servoDesired=30;// Adjust angle if needed
+     
+    servoActive = true;
+    servoStartTime = millis(); // Start timer
+
+    // Handle servo auto-release after 3 seconds
+    if (servoActive && (millis() - servoStartTime >= clampHoldTime)) {
+      //Schedule a smooth return to open
+      servoDesired=150;
+
+      servoActive = false;
+    }
+
+    if (servoCurrent < servoDesired)
+    {
+      if (servoCurrent+servoDelta > servoDesired)
+        servoCurrent=servoDesired;
+      else servoCurrent+=servoDelta;
+      flipServo.write(servoCurrent);
+    }
+    else if (servoCurrent > servoDesired)
+    {
+      if (servoCurrent-servoDelta < servoDesired)
+        servoCurrent=servoDesired;
+      else servoCurrent-=servoDelta;
+      flipServo.write(servoCurrent);
+    }
+  }
+//
+    //clamp pages down
+    clampServo1.write(100);   // Move servo to 0 degrees
+    clampServo2.write(0);
+    delay(1000);
+
+  }
+  
