@@ -1,0 +1,11 @@
+// Turn wheel motor on
+digitalWrite(wheelServoIn1, HIGH);   // Direction
+digitalWrite(wheelServoIn2, LOW);
+analogWrite(enablePin, 210);         // Set speed
+
+delay(1200);                         // Let motor run
+
+// Turn wheel motor off
+analogWrite(enablePin, 0);           // Stop PWM
+digitalWrite(wheelServoIn1, LOW);    // Cut H-bridge direction
+digitalWrite(wheelServoIn2, LOW);
