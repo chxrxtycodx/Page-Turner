@@ -68,7 +68,7 @@ void loop() {
   distance = (duration*.0343)/2;
 
 
-  if (digitalRead(BUTTON_PIN) == HIGH && !flipping || distance <= 40&& !flipping ) {
+  if (digitalRead(BUTTON_PIN) == HIGH && !flipping || distance <= 40 && !flipping ) {
     Serial.println("Button pressed");
 
     // Lift clamps
