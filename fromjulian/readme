@@ -1,0 +1,36 @@
+Here are a few directions and troubleshooting tips to help you accomplish everything
+
+1:
+I assume the wheel is either 1- having trouble connecting to power/receiving power, 2- the ground of the wheel or the wheels power supply is not connected to the arduino
+so the arduino cannot reference the signaled output (the wheel spinning), or 3- theres too much power withinin the circuit (however this cannot be the case since the clamps and 
+the flipper are working. This needs to be fixed first and foremost.
+
+2:
+The voice activation functionality needs to be tested. I have uploaded some code with a preliminary adaptation of both the voice activation and the button code with the hope
+that it will work. I was not able to test this as I was focused on getting all of the clamps to work. Below are some tips and tricks to aid in training the voice module
+
+TRAINING THE VOICE MODULE
+There is a file in this folder that is titled something like "vr_sample_train". Open this file. Once you upload that code to the arduino, open the serial monitor
+(tools -> serial monitor, and make sure the baud matches-it will either be 9600 or 115200). A lot of options should pop up in the serial monitor, the ones you should
+focus on are train, load, and clear. They are pretty self-explanatory. 
+
+TESTING THE VOICE MODULE INPUTS
+There is an additional file titled something like "vr_control_led". This will help you test if the commands you created can be read (at all if not reliably). When
+using this, there will be a define section near the top, "onRecord" should be the turn-command, "offRecord" does not necessarily need to be used today. After you run the 
+the LED control code, (a light may start flickering or stay lit on the module itself), you should try recitating (OR USE A VOICE RECORDING!!!!) of the command to see if the LED
+on the ARDUINO will activate. If it does, move on to the next steps, if it doesnt...well there could be one of two things happening. 1. The voice recognition module isn't
+activating or showing up when you run the control LED code and thus it is not responding at all. If this is happening, check the wiring of both the voice module and the arduino.
+Make sure the ground and VCC are connected to ground and 5V respectively. If all the wiring is correct and the voice module just isnt responding, let me know and we will
+trouble shoot it by testing it with a different arduino on a separate breadboard (DO NOT DISCONNECT ANY WIRES. I will guide you guys through this or do it myself IF it needs
+to happen). 2. I dont really know and cant think of it but there obviously are other ways it could go wrong
+
+INCORPORATING THE VOICE MODULE
+Now, since everything works (seemingly), open up the file that has the voice recognition code in it AND the servo clamps. Run the code to see if everything works. When you
+run the code, press the button and if everything functions, you can move on to testing the voice activation. If the voice activation module does not work, try and
+troubleshoot it using ChatGPT or asking me. Ideally, the "active" light on the voice module will be flashing or lit to let you know it is actively listening for the trigger phrase.
+If that does not happen, you should refer to #1 issue in TESTING THE VOICE MODULE INPUTS. 
+
+That is everything that NEEDS to be configured. The ranger is NOT a top priority and should be treated as so. Yes, it is already on there but it is not in our demo
+specifications table. Prioritize. 
+
+Feel free to text me or call me if you guys have any questions! I am on standby.
