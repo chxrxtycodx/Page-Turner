@@ -1,146 +1,176 @@
+
 #include <Servo.h>
 
-#define BUTTON_PIN 2         // Button connected to pin 2
-#define CLAMP_PIN1 5         // Right clamp servo
-#define CLAMP_PIN2 8         // Left clamp servo
-#define CLAMP_PIN3 3         // Page flipper servo
-#define LED_BUILTIN 13       // Built-in LED
+// ─── Pin assignments ─────────────────────────────────────────────────────────
+#define BUTTON_PIN   2   // push‑button
+#define CLAMP_PIN1   5   // right clamp servo
+#define CLAMP_PIN2   8   // left  clamp servo
+#define CLAMP_PIN3   3   // page‑flipper servo
+#define LED_BUILTIN 13   // on‑board LED
 
 const int wheelServoIn1 = 6;
 const int wheelServoIn2 = 7;
-const int enablePin = 4;
+const int enablePin     = 4;
 
-// Ranger pins (currently unused)
+// Ranger (unused for now)
 const int trigPin = 14;
 const int echoPin = 15;
 
-// Servo objects
+// ─── Servo objects ───────────────────────────────────────────────────────────
 Servo clampServo1;
 Servo clampServo2;
 Servo flipServo;
 
-// Right clamp threshold
+// ─── Clamp control ───────────────────────────────────────────────────────────
 const int clamp1Deadzone = 3;
-int lastClamp1Pos = -1;
+int lastClamp1Pos        = -1;
 
-// Flipper motion
-int flipStart = 170;
-int flipEnd = 0;
-int flipCurrent = 170;
-bool flipping = false;
-unsigned long lastFlipUpdate = 0;
-const unsigned long flipInterval = 15; // smoother movement
-const int deadzone = 10;
-const int maxFlipSpeed = 10;
-const int minFlipSpeed = 1;
-const int flipThreshold = 15;
+// ─── Flipper motion parameters ───────────────────────────────────────────────
+int  flipCurrent       = 170;   // where the flipper actually is
+int  flipEnd           = 170;   // where we want it to go
+const int deadzone     = 10;    // when we consider the target “reached”
+const int maxFlipSpeed = 15;    // degrees per step (far from target)
+const int minFlipSpeed = 1;     // degrees per step (close to target)
+const int flipThreshold = 15;   // distance that triggers slow speed
+const int wheelTime = 800;     // time for the wheel spinning
 
-// Button state tracking
+const unsigned long flipInterval = 20;   // ms between incremental moves
+unsigned long       lastFlipUpdate = 0;
+
+// ─── State machine for the flipper ───────────────────────────────────────────
+enum FlipState { IDLE, DOWN, PAUSE, UP };
+FlipState flipState = IDLE;
+
+const unsigned long flipPause   = 500;  // how long to wait at the bottom (ms)
+const unsigned long clampSettle = 750;   // **how long to wait after clamps close (ms)**
+unsigned long       pauseStart  = 0;     // when the pause began
+
+// ─── Button state tracking ───────────────────────────────────────────────────
 bool lastButtonState = HIGH;
 
+// ─────────────────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(9600);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
 
   clampServo1.attach(CLAMP_PIN1);
-  setClampServo1(80); // Use new thresholded function
+  setClampServo1(80);          // default grip angle
   clampServo2.attach(CLAMP_PIN2);
-  clampServo2.write(100);
+  clampServo2.write(100);      // default grip angle
 
   flipServo.attach(CLAMP_PIN3);
   flipServo.write(flipCurrent);
 
-  pinMode(enablePin, OUTPUT);
-  pinMode(wheelServoIn1, OUTPUT);
-  pinMode(wheelServoIn2, OUTPUT);
+  pinMode(enablePin,      OUTPUT);
+  pinMode(wheelServoIn1,  OUTPUT);
+  pinMode(wheelServoIn2,  OUTPUT);
 
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  Serial.println("Setup complete. Waiting for button press...");
+  Serial.println("Setup complete. Waiting for button press…");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void loop() {
   bool currentButtonState = digitalRead(BUTTON_PIN);
 
-  // Button pressed (edge trigger)
-  if (lastButtonState == HIGH && currentButtonState == LOW && !flipping) {
-    Serial.println("Button pressed - starting sequence");
+  // ── Button edge: start a page‑turn cycle ───────────────────────────────────
+  if (lastButtonState == HIGH && currentButtonState == LOW && flipState == IDLE) {
+    Serial.println("Button pressed – starting sequence");
     digitalWrite(LED_BUILTIN, HIGH);
 
-    // Step 1: Lift clamps
+    // 1) Lift clamps
     Serial.println("Lifting clamps");
     setClampServo1(160);
     clampServo2.write(0);
-    delay(350);
+    delay(350);                        // fine to block here – nothing else yet
 
-    // Step 2: Spin motor
+    // 2) Spin wheel motor
     Serial.println("Spinning wheel motor");
     digitalWrite(wheelServoIn1, HIGH);
     digitalWrite(wheelServoIn2, LOW);
-    analogWrite(enablePin, 255);
-    delay(1000);
+    analogWrite(enablePin, 180);
+    delay(wheelTime);
     digitalWrite(wheelServoIn1, LOW);
     digitalWrite(wheelServoIn2, LOW);
     analogWrite(enablePin, 0);
     Serial.println("Motor stopped");
 
-    // Step 3: Flip page down
+    // 3) Start flipper moving down
     Serial.println("Beginning flip down");
-    flipping = true;
-    flipStart = flipCurrent;
-    flipEnd = 0;
+    flipEnd        = 0;                // bottom position
+    flipState      = DOWN;
     lastFlipUpdate = millis();
   }
-
   lastButtonState = currentButtonState;
 
-  // Handle flipping
-  if (flipping && millis() - lastFlipUpdate >= flipInterval) {
+  // ── Handle flipper state machine ───────────────────────────────────────────
+  if (flipState != IDLE && millis() - lastFlipUpdate >= flipInterval) {
     lastFlipUpdate = millis();
 
-    if (abs(flipCurrent - flipEnd) <= deadzone) {
-      flipCurrent = flipEnd;
-      flipServo.write(flipCurrent);
-      Serial.print("Reached position: ");
-      Serial.println(flipEnd);
+    switch (flipState) {
 
-      if (flipEnd == 0 || flipEnd == 30) {
-        Serial.println("Pausing at bottom position");
-        delay(500);
-        flipEnd = 190;
-        Serial.println("Flipping back up");
-      } else if (flipEnd == 190) {
-        flipping = false;
-        digitalWrite(LED_BUILTIN, LOW);
-        Serial.println("Flip complete. Resetting clamps");
+      // ── Moving DOWN ────────────────────────────────────────────────────────
+      case DOWN:
+        if (moveTowardTarget()) {              // reached 0°
+          Serial.println("Bottom reached – pausing …");
+          flipState  = PAUSE;
+          pauseStart = millis();
+        }
+        break;
 
-        setClampServo1(80);
-        clampServo2.write(100);
-        delay(1000);
-        Serial.println("Clamps reset. Waiting for next button press...");
-      }
-    } else {
-      int distanceToTarget = abs(flipCurrent - flipEnd);
-      int flipSpeed = (distanceToTarget < flipThreshold) ? minFlipSpeed : maxFlipSpeed;
+      // ── Waiting at bottom ─────────────────────────────────────────────────
+      case PAUSE:
+        if (millis() - pauseStart >= flipPause) {
+          Serial.println("Pause over – lowering clamps");
+          setClampServo1(80);          // close right clamp
+          clampServo2.write(100);      // close left clamp
+          delay(clampSettle);          // ***wait while clamps settle***
 
-      if (flipCurrent > flipEnd) {
-        flipCurrent -= flipSpeed;
-        if (flipCurrent < flipEnd) flipCurrent = flipEnd;
-      } else {
-        flipCurrent += flipSpeed;
-        if (flipCurrent > flipEnd) flipCurrent = flipEnd;
-      }
+          Serial.println("Clamps down – flipping up");
+          flipEnd   = 190;             // top position
+          flipState = UP;
+        }
+        break;
 
-      flipServo.write(flipCurrent);
-      Serial.print("Flipping... Current position: ");
-      Serial.println(flipCurrent);
+      // ── Moving UP ─────────────────────────────────────────────────────────
+      case UP:
+        if (moveTowardTarget()) {              // reached 190°
+          Serial.println("Flip complete");
+          digitalWrite(LED_BUILTIN, LOW);
+          delay(1000);                         // optional pause before next cycle
+          Serial.println("Ready for next button press");
+          flipState = IDLE;
+        }
+        break;
+
+      default: break;
     }
   }
 }
 
-// Set clampServo1 only if change is greater than deadzone
+// ─────────────────────────────────────────────────────────────────────────────
+// Incrementally move flipCurrent toward flipEnd.
+// Returns true once the target is reached.
+bool moveTowardTarget() {
+  if (abs(flipCurrent - flipEnd) <= deadzone) {
+    flipCurrent = flipEnd;
+    flipServo.write(flipCurrent);
+    return true;
+  }
+
+  int dist       = abs(flipCurrent - flipEnd);
+  int step       = (dist < flipThreshold) ? minFlipSpeed : maxFlipSpeed;
+  flipCurrent   += (flipCurrent > flipEnd ? -step : step);
+  flipServo.write(flipCurrent);
+
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Move clampServo1 only if the change is bigger than the deadzone
 void setClampServo1(int targetAngle) {
   if (lastClamp1Pos == -1 || abs(targetAngle - lastClamp1Pos) > clamp1Deadzone) {
     clampServo1.write(targetAngle);
